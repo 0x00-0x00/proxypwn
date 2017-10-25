@@ -113,7 +113,7 @@ class Tunnel(object):
 
 
 class SquidScanner(object):
-    def __init__(self, target, ip_range, error_string, prange, tunnel_bool):
+    def __init__(self, target, ip_range, error_string, prange, tunnel_bool, creds):
         """
         param str, str, str, (int, int)
         """
@@ -128,6 +128,12 @@ class SquidScanner(object):
 
         self.tunnel = tunnel_bool
         self.tunnels = list()
+
+        self.username = None
+        self.passwd = None
+        if len(creds) > 1:
+            self.username = creds[0]
+            self.passwd = creds[1]
 
         self.scan_finished = False
         self._start()
@@ -153,9 +159,14 @@ class SquidScanner(object):
             name = currentThread().getName()
             pool.makeActive(name)
             ip, port = conn_info
-            proc = Popen("curl --connect-timeout {0} -x {1}:{2} {3}:{4}".format(DEFAULT_TIMEOUT,
-                self.target_ip, self.target_port, ip, port), shell=True,
+            if self.passwd is None:
+                proc = Popen("curl --connect-timeout {0} -x '{1}:{2}' {3}:{4}".format(DEFAULT_TIMEOUT,
+                    self.target_ip, self.target_port, ip, port), shell=True,
                 stdout=PIPE, stderr=PIPE)
+            else:
+                proc = Popen("curl --connect-timeout {0} -x '{1}:{2}' {3}:{4} --proxy-user '{5}:{6}'".format(DEFAULT_TIMEOUT,
+                    self.target_ip, self.target_port, ip, port, self.username, self.passwd), shell=True,
+                    stdout=PIPE, stderr=PIPE)
             stdout, stderr = proc.communicate()
             for err in self.error_string.split(","):
                 if err.lower() in stdout.lower():
@@ -195,6 +206,10 @@ if __name__ == "__main__":
             default=cpu_count())
     parser.add_argument("--tunnel", help="Establish TCP tunnels.", required=False,
             default=False, action="store_true")
+    parser.add_argument("--username", help="Username to use at Proxy", required=False,
+            type=str)
+    parser.add_argument("--password", help="Password to use at the Proxy", required=False,
+            type=str)
 
     args = parser.parse_args()
     if ":" not in args.target:
@@ -212,7 +227,7 @@ if __name__ == "__main__":
         exit(1)
 
     try:
-        scanner = SquidScanner(args.target, args.range, args.error_string, prange, args.tunnel)
+        scanner = SquidScanner(args.target, args.range, args.error_string, prange, args.tunnel, (args.username, args.password))
         sleep(DEFAULT_TIMEOUT)
         while scanner.scan_finished is not True:
             sleep(DEFAULT_TIMEOUT)
