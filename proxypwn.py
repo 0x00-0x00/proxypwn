@@ -174,11 +174,11 @@ class SquidScanner(object):
                     return None
             info("Open port: {0}".format(port))
             self.open_ports.append(port)
+            pool.makeInactive(name)
             if self.tunnel is True:
                 tunnel = Tunnel( (self.target_ip, self.target_port), (ip, port),
                         self.base_num) # creates a TCP tunnel
                 self.tunnels.append(tunnel) # register the tunnel
-            pool.makeInactive(name)
         return port
 
     def _start(self):
@@ -186,10 +186,11 @@ class SquidScanner(object):
             print("")
             info("Scanning host {0} for port range {1}-{2}".format(ip_addr, self.start_port, self.end_port))
             for port in range(self.start_port, self.end_port):
-                thr = Thread(target=self._prod_port, args=((ip_addr, port),),
-                        name="portscan_{0}".format(port))
-                thr.start()
-                write("Scanning port: {0}  \r".format(port))
+		with semaphore:
+	                thr = Thread(target=self._prod_port, args=((ip_addr, port),),
+	                        name="portscan_{0}".format(port))
+	                thr.start()
+	                write("Scanning port: {0}  \r".format(port))
         return None
 
 
